@@ -22,9 +22,9 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.Charset
-import java.text.DecimalFormat
-
-
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 @Suppress("DEPRECATION")
@@ -38,14 +38,15 @@ class MainActivity : AppCompatActivity() {
     private var workerThread: Thread? = null
     private lateinit var readBuffer: ByteArray
     private var readBufferPosition = 0
+    private val items = arrayListOf<Item>()
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var bluetoothManager: BluetoothManager
     private val handler = Handler()
+    private var printerName = ""
 
     @Volatile
     var stopWorker = false
     private var value = ""
-    private val connectionless: Connectionless = Connectionless()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,12 +59,12 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnSelect.setOnClickListener {
             checkPermission()
-            btScan()
+            startBluetoothScanning()
         }
 
         binding.btnPrint.setOnClickListener {
             if (btPermission) {
-                printInvoice()
+                printInvoice(items)
             } else {
                 checkPermission()
 
@@ -94,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                 val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
                 btActivityResultLauncher.launch(enableBtIntent)
             } else {
-                btScan()
+                startBluetoothScanning()
             }
         }
     }
@@ -103,12 +104,12 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            btScan()
+            startBluetoothScanning()
         }
     }
 
     @SuppressLint("MissingPermission")
-    private fun btScan() {
+    private fun startBluetoothScanning() {
         val builder = AlertDialog.Builder(this@MainActivity)
         val dialogView = layoutInflater.inflate(R.layout.scan_btn, null)
         builder.setCancelable(false)
@@ -129,25 +130,21 @@ class MainActivity : AppCompatActivity() {
 
             val fromHere = arrayOf("A")
             val viewsHere = intArrayOf(R.id.itemName)
-            val bluetoothDevicesAdapter  =
+            val bluetoothDevicesAdapter =
 
                 SimpleAdapter(
-                    this@MainActivity,
-                    devicesList,
-                    R.layout.item_list,
-                    fromHere,
-                    viewsHere
+                    this@MainActivity, devicesList, R.layout.item_list, fromHere, viewsHere
                 )
 
             btnList.adapter = bluetoothDevicesAdapter
-            btnList.onItemClickListener =
-                AdapterView.OnItemClickListener { _, _, position, _ ->
-                    val selectedDevice = devicesList[position]
-                    val printName = selectedDevice["A"].toString()
-                    binding.etBluetoothPrinter.setText(printName)
-                    connectionless.printerName = printName
-                    dialog.dismiss()
-                }
+            btnList.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
+                val selectedDevice = devicesList[position]
+                val printName = selectedDevice["A"].toString()
+                binding.etBluetoothPrinter.setText(printName)
+                printerName = printName
+//                connectionless.printerName = printName
+                dialog.dismiss()
+            }
             dialog.show()
         } else {
             val value = "No Paired Devices Found"
@@ -175,9 +172,7 @@ class MainActivity : AppCompatActivity() {
                                 if (byte == delimiter) {
                                     val encodedBytes = ByteArray(readBufferPosition)
                                     System.arraycopy(
-                                        readBuffer, 0,
-                                        encodedBytes, 0,
-                                        encodedBytes.size
+                                        readBuffer, 0, encodedBytes, 0, encodedBytes.size
                                     )
 
                                     val data = String(encodedBytes, Charset.forName("US-ASCII"))
@@ -205,7 +200,7 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     fun initPrinter() {
-        val printerName = connectionless.printerName
+//        val printerName = connectionless.printerName
         try {
             if (!bluetoothAdapter.isEnabled) {
                 val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
@@ -222,7 +217,8 @@ class MainActivity : AppCompatActivity() {
                                     Int::class.javaPrimitiveType
                                 )
                             )
-                            socket = connectToAntherDevice.invoke(bluetoothDevice, 1) as BluetoothSocket
+                            socket =
+                                connectToAntherDevice.invoke(bluetoothDevice, 1) as BluetoothSocket
                             bluetoothAdapter.cancelDiscovery()
                             socket!!.connect()
                             outputStream = socket!!.outputStream
@@ -246,178 +242,95 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    private fun printInvoice(
+        items: ArrayList<Item>
+    ) {
+        items.add(Item("منتج 1", 2, 20.0))
+        items.add(Item("منتج 2", 5, 30.0))
+        val companyName = "\u202Eاسم الفاتوره"
+        val address = "\u202Eعنوان "
+        val mobileNumber = "\u202E1123456"
+        val gstin = "\u202E5"
+        val billNumber = "\u202E101 "
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale("ar"))
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale("ar"))
+        val billDate = "\u202E" + dateFormat.format(Date())
+        val billTime = "\u202E" + timeFormat.format(Date())
 
-
-
-
-
-
-
-
-
-
-
-    private fun printInvoice() {
+        val totalAmount = 100.0
+        val gstAmount = 10.0
+        val grandTotal = 110.0
+        val thankYouMessage = "\u202Eشكرًا لك"
         try {
-            var str: String
-            val invoiceHeader = "Tax Invoice"
-            val address = "Deccon Tech"
-            val customerName = "Self"
-            val cashierName = "Admin"
-            val companyName = "Thermal Printer Sample"
-            val mobileNumber = "98000000000"
-            val gstin = "Gst no"
-            val billNumber = "1001"
-            val billDate = "06-09-2023"
-            val tableNumber = "5"
-            val thankYouMessage = "Thanks"
-            val amountInWords = "One Hundred five Only"
-            val totalAmount = 100.00
-            val gstAmount = 5.0
-            val grandTotal = 105.00
 
-
-            val textData = StringBuilder()
-            val itemDetails = StringBuilder()
-            val totalsData = StringBuilder()
-            val wordsData = StringBuilder()
-            val footerData = StringBuilder()
-
-
-            if (invoiceHeader.isNotEmpty()) {
-                textData.append("$invoiceHeader\n")
-            }
-            textData.append("$companyName\n")
-            textData.append("$address\n")
-            if (mobileNumber.isNotEmpty()) {
-                textData.append("$mobileNumber\n")
-            }
-            if (gstin.isNotEmpty()) {
-                textData.append("$gstin\n")
+            val finalInvoiceText = buildString {
+                append("$companyName\n$address\nرقم الجوال: $mobileNumber\nرقم الضريبة: $gstin\n")
+                append("رقم الفاتورة: $billNumber\n")
+                append("تاريخ الفاتورة: $billDate\n")
+                append("وقت الفاتورة: $billTime\n")
+                appendLine("------------------------------------------------")
+                append("\u202Eالعنصر\tالكمية\tالسعر\n")
+                appendLine("------------------------------------------------")
+                items.forEach { item ->
+                    val itemTotal = item.quantity.toDouble() * item.price
+                    append("\u202E${item.name}\t${item.quantity}\t${item.price}\n")
+                }
+                append("اجمالي الحساب قبل الضريبة: $totalAmount\n")
+                append("ضريبة: $gstAmount\n")
+                append("الإجمالي بعد الضريبة: $grandTotal\n")
+                append("------------------------------------------------\n")
+                append("$thankYouMessage\n")
             }
 
-            str = String.format("%-14s %17s", "Inv#$billNumber", "Table#: $tableNumber")
-            textData.append("$str\n")
-            textData.append("Data Time: $billDate\n")
-
-            itemDetails.append("--------------------------------------\n")
-            itemDetails.append("Item Description\n")
-
-            str = String.format("%-11s %9s %18s", "Qty", "Rate", "Amount")
-            itemDetails.append("$str\n")
-            itemDetails.append("--------------------------------------\n")
-
-            val decimalFormat = DecimalFormat("0.00")
-            var itemName: String
-            var rate: String?
-            var quantity: String
-            var itemAmount: String?
-
-            for (i in 0 until 10) {
-                val price = 10
-                itemName = "Item $i"
-                rate = decimalFormat.format(price)
-                quantity = "1 pc"
-                itemAmount = "10.0"
-                itemDetails.append("$itemName\n")
-                str = String.format("%-11s %9s %10s", quantity, rate, itemAmount)
-                itemDetails.append("$str\n")
-            }
-            itemDetails.append("--------------------------------------\n")
-
-            str = String.format("%-9s %-11s %10s", customerName, "Total:", totalAmount)
-            itemDetails.append("$str\n")
-            str = String.format("%-9s %-11s %10s", cashierName, "Gst:", gstAmount)
-            itemDetails.append("$str\n")
-            str = String.format("%-7s %8s", "Total:", grandTotal)
-            totalsData.append("$str\n")
-
-            wordsData.append("$amountInWords\n")
-            if (thankYouMessage.isNotEmpty()) {
-                footerData.append("$thankYouMessage\n")
-            }
-            footerData.append("Android App\n\n\n\n")
-
-            intentPrint(
-                textData.toString(),
-                itemDetails.toString(),
-                totalsData.toString(),
-                wordsData.toString(),
-                footerData.toString()
-            )
-
-            Log.d("printerAsh", "textData: $textData")
-            Log.d("printerAsh", "itemDetails: $itemDetails")
-            Log.d("printerAsh", "totalsData: $totalsData")
-            Log.d("printerAsh", "wordsData: $wordsData")
-            Log.d("printerAsh", "footerData: $footerData")
-
+            sendDataTPrinter(finalInvoiceText)
+            Log.d("printer", finalInvoiceText)
         } catch (ex: Exception) {
-            Log.e("printerAsh", "Exception during printing", ex)
-            Toast.makeText(this, "Exception during printing: ${ex.message}", Toast.LENGTH_LONG)
-                .show()
+            Log.e("printerError", "خطأ أثناء الطباعة", ex)
+            Toast.makeText(this, "خطأ أثناء الطباعة: ${ex.message}", Toast.LENGTH_LONG).show()
         }
     }
 
 
-    private fun intentPrint(
-        txtvalue: String,
-        txtvalue1: String,
-        txtvalue2: String,
-        txtvalue3: String,
-        txtvalue4: String
-    ) {
-
-        if (connectionless.printerName.trim().isNotEmpty()) {
-            val buffer = txtvalue1.toByteArray()
-            val PrintHeader = byteArrayOf(0xAA.toByte(), 0x55, 2, 8)
-            PrintHeader[3] = buffer.size.toByte()
+    private fun sendDataTPrinter(data: String) {
+        if (printerName.trim().isNotEmpty()) {
+            Log.d("printer", "Printer Name: $printerName")
+            val buffer = data.toByteArray()
+            val printHeader = byteArrayOf(0xAA.toByte(), 0x55, 2, 8)
+            printHeader[3] = buffer.size.toByte()
             initPrinter()
-            if (PrintHeader.size > 128) {
-                value += "\nValue is more than 128 size\n"
-                Toast.makeText(this, value, Toast.LENGTH_LONG).show()
-                Log.d("printerAsh", value)
+            if (printHeader.size > 128) {
+                Log.d("printerAsh", "Value is more than 128 size")
             } else {
                 try {
                     if (socket != null) {
-                        try {
-                            val SP = byteArrayOf(0x18, 0x40)
-                            outputStream!!.write(SP)
-                            Thread.sleep(1000)
-                        } catch (e: InterruptedException) {
-                            e.printStackTrace()
-                        }
+                        val SP = byteArrayOf(0x18, 0x40)
+                        outputStream!!.write(SP)
+                        Thread.sleep(1000)
                         val FONT_1X = byteArrayOf(0x18, 0x21, 0x00)
                         outputStream!!.write(FONT_1X)
                         val ALIGN_CENTER = byteArrayOf(0x18, 0x61, 1)
                         outputStream!!.write(ALIGN_CENTER)
-                        outputStream!!.write(txtvalue.toByteArray())
+                        outputStream!!.write(data.toByteArray())
                         val ALIGN_LEFT = byteArrayOf(0x18, 0x61, 0)
                         outputStream!!.write(ALIGN_LEFT)
-                        outputStream!!.write(txtvalue1.toByteArray())
                         val FONT_2X = byteArrayOf(0x1B, 0x21, 0x30)
                         outputStream!!.write(FONT_2X)
-                        outputStream!!.write(txtvalue2.toByteArray())
                         outputStream!!.write(FONT_1X)
                         outputStream!!.write(ALIGN_LEFT)
-                        outputStream!!.write(txtvalue3.toByteArray())
                         outputStream!!.write(ALIGN_CENTER)
-                        outputStream!!.write(txtvalue4.toByteArray())
                         val FEED_PAPER = byteArrayOf(0x1D, 0x56, 66, 0x00)
                         outputStream!!.write(FEED_PAPER)
                         outputStream!!.flush()
                         outputStream!!.close()
                         socket!!.close()
-
-
                     }
                 } catch (ex: java.lang.Exception) {
                     Log.e("printerAsh", "Exception during printing", ex)
-                    Toast.makeText(this, ex.message, Toast.LENGTH_LONG).show()
-                    Log.d("printerAsh", ex.message.toString())
                 }
             }
-
+        } else {
+            Toast.makeText(this, "الرجاء تحديد الطابعة", Toast.LENGTH_LONG).show()
         }
     }
+
 }
